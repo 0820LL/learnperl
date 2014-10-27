@@ -130,6 +130,9 @@ Output
          .snp.select.info
 
 Example
-perl FilterSomaticSNP_v1.1.pl  -reform T010012.Wbc010012.filted.mutect.SNP.reformated.txt -info T010012.Wbc010012.filted.mutect.SNP.info -out test.snp -double 1 -dp 50 -fre 0.05 -mut 5
+perl FilterSomaticSNP_v1.2.pl  -reform T010012.Wbc010012.filted.mutect.SNP.reformated.txt -info T010012.Wbc010012.filted.mutect.SNP.info -pre test.snp -double 1 -dp 50 -fre 0.05 -mut 5
 \n" if(!$info || (! -f $info) || !$reform || (! -f $reform) || !$prefix);
+die "Cannot open $info $!\n" if(! -f $info);
+die "Cannot open $reform $!\n" if(! -f $reform);
+
 }
