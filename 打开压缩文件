@@ -1,0 +1,131 @@
+#!perl
+use warnings;
+use strict;
+use Getopt::Long;
+
+our($help,$version);
+my($f_snp,$f_wbc,$f_ca,$f_ctDNA);
+
+my $optionOK = GetOptions(
+    'h|help|?' => \$help,
+    'f_snp:s' => \$f_snp,
+    'f_wbc:s' => \$f_wbc,
+    'f_ca:s' => \$f_ca,
+    'f_ctDNA:s' => \$f_ctDNA,
+);
+our(@for,@back);
+
+sub get_DP4($){
+    my $value = $_[0];
+    my($first,$second);
+    if($value =~ /^(DP=\d+);.*;(DP4=\d+,\d+,\d+,\d+);.*$/){
+        $first = $1;
+        $second = $2;
+    }
+    my @temp = split(/,/,$second);
+    my $third = "AltB=".($temp[2]+$temp[3]);
+    my $DP4_add = $first."|".$second."|".$third;
+    return $DP4_add;
+}
+
+sub tra_WBC(){
+    my $sample_id;
+    my $flag = 0;
+    seek WBC,0,0;
+    while(<WBC>){
+        chomp;
+        print $_,"\n";
+        last;
+        next if($_ =~ /^##/);
+        if(($_ =~ /^#CHROM/) and ($for[0] =~ /^Chr/)){
+            $sample_id = (split(/\t/,$_))[-1];
+            push(@for,$sample_id) if($for[0] =~ /^Chr/);
+            $flag = 1;
+            last;
+        }
+        my @line = split(/\t/,$_);
+        if(($for[0] eq $line[0]) and ($for[1] eq $line[1])){
+            my $DP4 = &get_DP4($line[7]);
+            push(@for,$DP4) if($for[0] !~ /^Chr/);
+            $flag = 1;
+            last;
+        }
+    }
+    push(@for,"-")if($flag == 0);
+}
+sub tra_ca(){
+    seek(CA,0,0);
+    while(<CA>){
+        chomp;
+        next if($_ =~ /^#/);
+        my @line = split(/\t/,$_);
+        if(($for[0] eq $line[0]) and ($for[1] eq $line[1])){
+            my $DP4 = &get_DP4($line[7]);
+            my $subs = $line[3]."|".$DP4;
+            $back[0] = $subs;
+            last;
+        }
+    }
+}
+sub tra_ctdna(){
+    seek(CT,0,0);
+    while(<CT>){
+        chomp;
+        next if($_ =~ /^#/);
+        my @line = split(/\t/,$_);
+        if (($for[0] eq $line[0]) and ($for[1] eq $line[1])){
+            my $DP4 = &get_DP4($line[7]);
+            my $subs = $line[3]."|".$DP4;
+            $back[1] = $subs;
+            last;
+        }
+    }
+}
+sub tra_snp(){
+    while(<SNP>){
+        my @line = split(/\t/,$_);
+        @for = @line[0,1,2];
+        @back = @line[(3 .. $#line)];
+        &tra_WBC();
+        if($back[0] =~ /\-/){
+            &tra_ca();
+        }
+        if($back[1] =~ /\-/){
+            &tra_ctdna();
+        }
+        my $res = join("\t",@for,@back);
+        #print $res;
+    }
+}
+sub usage{
+    die"
+    Version 1.0
+    -help|h|?  print this message
+    -f_snp  ***.mer.snp.xls
+    -f_wbc  wbc.Raw.vcf.gz
+    -f_ca  ca.Raw.vcf.gz
+    -f_ctDNA  ctDNA.Raw.vcf.gz
+
+    Usage: 
+          perl script.pl -f_snp ***.mer.snp.xls -f_wbc wbc.Raw.vcf.gz -f_ca ca.Raw.vcf.gz -f_ctDNA ctDNA.Raw.vcf.gz\n" if($help);
+}
+sub main(){
+    &usage();
+    my @temp = split(/\//,$f_snp);
+    my $temp1 = $temp[-1];
+    $temp1 =~ /(.*)\.xls/;
+    my $prefix = $1; 
+    my $outfile = $prefix.".add_DP4.xls";
+    open(SNP, "<$f_snp") or die $!; 
+    open(WBC, "gzip -dc $f_wbc |") or die $!; 
+    open(CA, "gzip -dc $f_ca |") or die $!; 
+    open(CT, "gzip -dc $f_ctDNA |") or die $!; 
+    &tra_snp();
+    close SNP;
+    close WBC;
+    close CA;
+    close CT;
+    return 1;
+}
+
+exit(0) if(&main());
